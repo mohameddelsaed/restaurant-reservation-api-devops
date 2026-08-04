@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { SettingModule } from './setting/setting.module';
 import { DateModule } from './date/date.module';
+import { TimeSlotModule } from './time-slot/time-slot.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DateModule } from './date/date.module';
     AuthModule,
     SettingModule,
     DateModule,
+    TimeSlotModule,
   ],
   controllers: [],
   providers: [],
