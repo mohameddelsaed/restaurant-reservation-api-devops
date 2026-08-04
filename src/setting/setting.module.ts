@@ -8,6 +8,7 @@ import { UserModule } from '@/user/user.module';
 @Module({
   imports: [UserModule, TypeOrmModule.forFeature([Setting])],
   controllers: [SettingController],
-  providers: [SettingService]
+  providers: [SettingService],
+  exports:[SettingService]
 })
 export class SettingModule {}

@@ -4,6 +4,7 @@ import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { SettingModule } from './setting/setting.module';
+import { DateModule } from './date/date.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SettingModule } from './setting/setting.module';
     UserModule,
     AuthModule,
     SettingModule,
+    DateModule,
   ],
   controllers: [],
   providers: [],
