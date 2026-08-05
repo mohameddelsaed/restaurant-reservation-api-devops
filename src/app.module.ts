@@ -6,6 +6,8 @@ import { AuthModule } from './auth/auth.module';
 import { SettingModule } from './setting/setting.module';
 import { DateModule } from './date/date.module';
 import { TimeSlotModule } from './time-slot/time-slot.module';
+import { ReservationModule } from './reservation/reservation.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { TimeSlotModule } from './time-slot/time-slot.module';
     SettingModule,
     DateModule,
     TimeSlotModule,
+    ReservationModule,
+    RedisModule,
   ],
   controllers: [],
   providers: [],
