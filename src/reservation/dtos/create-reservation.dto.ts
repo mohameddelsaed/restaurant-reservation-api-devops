@@ -1,14 +1,11 @@
 import {
-  IsEnum,
   IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
   IsUUID,
   Matches,
   Min,
 } from 'class-validator';
-import { ReservationStatus } from "../reservation.entity";
 
 export interface CategorySnapshot {
   id: string; 
@@ -53,8 +50,4 @@ export class CreateReservationDto {
   @IsUUID()
   @IsNotEmpty()
   category_id: string;
-
-  @IsOptional()
-  @IsEnum(ReservationStatus)
-  status?: ReservationStatus;
 }
