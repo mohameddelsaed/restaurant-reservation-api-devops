@@ -6,9 +6,10 @@ import { UserModule } from '@/user/user.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Reservation } from './reservation.entity';
 import { RedisModule } from '@/redis/redis.module';
+import { SettingModule } from '@/setting/setting.module';
 
 @Module({
-  imports: [UserModule, RedisModule, TypeOrmModule.forFeature([Reservation])],
+  imports: [UserModule, RedisModule,SettingModule, TypeOrmModule.forFeature([Reservation])],
   controllers: [ReservationController],
   providers: [ReservationService, ReservationGateway],
   exports: [ReservationService],
