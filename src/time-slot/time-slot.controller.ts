@@ -1,12 +1,18 @@
-import { Controller, Get } from '@nestjs/common';
-import { TimeSlotService } from '../time-slot/time-slot.service';
+import { Controller, Get, Query } from '@nestjs/common';
+import { TimeSlotService } from './time-slot.service';
 
 @Controller('time-slots')
 export class TimeSlotController {
-  constructor(private readonly timeSlotService: TimeSlotService) { }
-  
+  constructor(private readonly timeSlotService: TimeSlotService) {}
+
   @Get()
-  getTimeSlots() {
-    return this.timeSlotService.getTimeSlots();
+  getTimeSlots(
+    @Query('date') date?: string,
+    @Query('guests') guests?: number,
+  ) {
+    return this.timeSlotService.getTimeSlots(
+      date,
+      guests ? Number(guests) : 1,
+    );
   }
 }
