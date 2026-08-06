@@ -28,8 +28,8 @@ export class ReservationController {
   }
 
   @Patch(":id/confirm")
-  confirmReservations(@Param('id',ParseUUIDPipe) id:string, @Body() data: {otp:string}) {
-    return this.reservationService.confirmReservation(id,data.otp);
+  confirmReservations(@Param('id', ParseUUIDPipe) id: string, @Body() data: { otp: string }) {
+    return this.reservationService.confirmReservation(id, data.otp);
   }
 
   @Patch(':id')
@@ -37,16 +37,22 @@ export class ReservationController {
   updateReservations(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() data: UpdateReservationDto,
-  ) { }
+  ) {
+    return this.reservationService.updateReservation(id, data);
+  }
   
   @Patch(':id/status')
   @UseGuards(AuthGuard)
   updateReservationsStatus(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() data: {status:string},
-  ) {}
+    @Body() data: { status: string },
+  ) {
+    return this.reservationService.updateReservation(id, data as UpdateReservationDto);
+  }
 
   @Delete(':id')
   @UseGuards(AuthGuard)
-  deleteReservations(@Param('id', ParseUUIDPipe) id: string) {}
+  deleteReservations(@Param('id', ParseUUIDPipe) id: string) {
+    return this.reservationService.deleteReservation(id);
+  }
 }

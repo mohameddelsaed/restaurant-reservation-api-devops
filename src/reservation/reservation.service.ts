@@ -5,6 +5,8 @@ import { Reservation, ReservationStatus } from './reservation.entity';
 import { REDIS_CLIENT } from '@/redis/redis.provider';
 import Redis from 'ioredis';
 import { randomInt } from 'node:crypto';
+import { UpdateReservationDto } from './dtos/update-reservation.dto';
+import { ReservationGateway } from './reservation.gateway';
 
 @Injectable()
 export class ReservationService {
@@ -12,6 +14,7 @@ export class ReservationService {
     @InjectRepository(Reservation)
     private readonly reservationRepository: Repository<Reservation>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly reservationGateway: ReservationGateway,
   ) {}
 
   async createReservation(data: any) {
@@ -23,14 +26,15 @@ export class ReservationService {
 
     const reservation = this.reservationRepository.create(data);
 
-    await this.reservationRepository.save(reservation);
+    const savedReservation = await this.reservationRepository.save(reservation);
 
     // Call WebSocket Gateway here to notify gateway
+    this.reservationGateway.notifyReservationChange(savedReservation);
 
-    return reservation;
+    return savedReservation;
   }
 
-  async confirmReservation(id:string,otp: string) {
+  async confirmReservation(id: string, otp: string) {
     const reservation = await this.reservationRepository.findOneBy({ id });
     
     if (!reservation) {
@@ -45,12 +49,45 @@ export class ReservationService {
 
     reservation.status = ReservationStatus.RESERVED;
 
-    await this.reservationRepository.save(reservation);
+    const updatedReservation = await this.reservationRepository.save(reservation);
 
     // HERE Will Send Reservation Confirmation Via Whatsapp
 
     // Call WebSocket Gateway here to notify gateway
+    this.reservationGateway.notifyReservationChange(updatedReservation);
 
-    return reservation;
+    return updatedReservation;
+  }
+
+  async updateReservation(id: string, updateDto: UpdateReservationDto) {
+    const reservation = await this.reservationRepository.findOneBy({ id });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+
+    Object.assign(reservation, updateDto);
+    const updatedReservation = await this.reservationRepository.save(reservation);
+
+    // Call WebSocket Gateway here to notify gateway
+    this.reservationGateway.notifyReservationChange(updatedReservation);
+
+    return updatedReservation;
+  }
+
+  async deleteReservation(id: string) {
+    const reservation = await this.reservationRepository.findOneBy({ id });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+
+    await this.redis.del(`otp-${reservation.phone_number}`);
+    await this.reservationRepository.remove(reservation);
+
+    // Call WebSocket Gateway here to notify gateway
+    this.reservationGateway.notifyReservationChange({ id, deleted: true });
+
+    return { message: 'Reservation deleted successfully', id };
   }
 }
