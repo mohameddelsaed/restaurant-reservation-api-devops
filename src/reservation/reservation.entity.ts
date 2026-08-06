@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 
 export interface CategorySnapshot {
-  id: number;
+  id: string;
   name: string;
   stay_duration: number;
 }

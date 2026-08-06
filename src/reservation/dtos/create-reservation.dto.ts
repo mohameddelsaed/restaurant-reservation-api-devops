@@ -8,7 +8,7 @@ import {
 } from 'class-validator';
 
 export interface CategorySnapshot {
-  id: string; 
+  id: string;
   name: string;
   stay_duration: number;
 }

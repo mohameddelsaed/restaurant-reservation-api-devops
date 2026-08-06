@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   NotFoundException,
@@ -14,6 +15,7 @@ import { UpdateReservationDto } from './dtos/update-reservation.dto';
 import { ReservationGateway } from './reservation.gateway';
 import { CreateReservationDto } from './dtos/create-reservation.dto';
 import { SettingService } from '@/setting/setting.service';
+import { CategoryService } from '@/category/category.service';
 
 @Injectable()
 export class ReservationService {
@@ -22,11 +24,12 @@ export class ReservationService {
     private readonly reservationRepository: Repository<Reservation>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly reservationGateway: ReservationGateway,
-    private readonly settingService:SettingService
-  ) { }
-  
+    private readonly settingService: SettingService,
+    private readonly categoryService: CategoryService,
+  ) {}
+
   async createReservation(dto: CreateReservationDto) {
-    const category = '';
+    const category = await this.categoryService.findOne(dto.category_id);
 
     // Check Client Selected Category
     if (!category) {
@@ -34,19 +37,29 @@ export class ReservationService {
     }
 
     const otp = randomInt(100000, 1000000).toString(); //Create OTP Code
+    console.log(otp);
 
     // HERE Will Send OTP Code via SMS Service
 
     await this.redis.set(`otp-${dto.phone_number}`, otp, 'EX', 300); // Save OTP Into Redis
 
-    const reservation = this.reservationRepository.create(dto);
+    const { category_id, ...reservationData } = dto;
 
-    const savedReservation = await this.reservationRepository.save(reservation);
+    const reservation = this.reservationRepository.create({
+      ...reservationData,
+      category: {
+        id: category.id,
+        name: category.name,
+        stay_duration: category.stayDuration,
+      },
+    });
+
+    await this.reservationRepository.save(reservation);
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange(savedReservation);
+    this.reservationGateway.notifyReservationChange(reservation);
 
-    return savedReservation;
+    return reservation;
   }
 
   async confirmReservation(id: string, otp: string) {
@@ -56,23 +69,28 @@ export class ReservationService {
       throw new NotFoundException('There is no reservation with that Id!');
     }
 
+    if (reservation.status === ReservationStatus.RESERVED) {
+      throw new BadRequestException('Reservation is already confirmed!');
+    }
+
     const savedOTP = await this.redis.get(`otp-${reservation.phone_number}`); // Get OTP Code From Redis
 
-    if (savedOTP !== otp) {
-      throw new UnauthorizedException('OTP code is incorrect');
+    if (!savedOTP || savedOTP !== otp) {
+      throw new UnauthorizedException('OTP code is incorrect or has expired!');
     }
+
+    await this.redis.del(`otp-${reservation.phone_number}`); //Remove OTP Code From Redis After Validation Check
 
     reservation.status = ReservationStatus.RESERVED;
 
-    const updatedReservation =
-      await this.reservationRepository.save(reservation);
+    await this.reservationRepository.save(reservation);
 
     // HERE Will Send Reservation Confirmation Via Whatsapp
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange(updatedReservation);
+    this.reservationGateway.notifyReservationChange(reservation);
 
-    return updatedReservation;
+    return reservation;
   }
 
   async updateReservation(id: string, updateDto: UpdateReservationDto) {
@@ -82,14 +100,34 @@ export class ReservationService {
       throw new NotFoundException('Reservation not found');
     }
 
-    Object.assign(reservation, updateDto);
-    const updatedReservation =
-      await this.reservationRepository.save(reservation);
+    if (updateDto.category_id) {
+      const category = await this.categoryService.findOne(
+        updateDto.category_id,
+      );
+
+      // Check Client Selected Category
+      if (!category) {
+        throw new NotFoundException('There is no category with that id !');
+      }
+      const { category_id, ...restUpdate } = updateDto;
+      Object.assign(reservation, {
+        ...restUpdate,
+        category: {
+          id: category.id,
+          name: category.name,
+          stay_duration: category.stayDuration,
+        },
+      });
+    } else {
+      Object.assign(reservation, updateDto);
+    }
+
+    await this.reservationRepository.save(reservation);
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange(updatedReservation);
+    this.reservationGateway.notifyReservationChange(reservation);
 
-    return updatedReservation;
+    return reservation;
   }
 
   async updateReservationStatus(id: string, status: ReservationStatus) {
@@ -101,17 +139,16 @@ export class ReservationService {
 
     reservation.status = status;
 
-    const updatedReservation =
-      await this.reservationRepository.save(reservation);
+    await this.reservationRepository.save(reservation);
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange(updatedReservation);
+    this.reservationGateway.notifyReservationChange(reservation);
 
     if (reservation.status === ReservationStatus.RESERVED) {
       // Here Will Send Whatsapp notification about Reservation Confirmation
     }
 
-    return updatedReservation;
+    return reservation;
   }
 
   async deleteReservation(id: string) {
@@ -121,7 +158,6 @@ export class ReservationService {
       throw new NotFoundException('Reservation not found');
     }
 
-    await this.redis.del(`otp-${reservation.phone_number}`);
     await this.reservationRepository.remove(reservation);
 
     // Call WebSocket Gateway here to notify gateway
