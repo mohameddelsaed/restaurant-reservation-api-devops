@@ -3,7 +3,6 @@ import {
   Inject,
   NotFoundException,
   Injectable,
-  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -11,40 +10,18 @@ import { Setting } from './setting.entity';
 import { UpdateSettingsDto } from './dtos/update-settings.dto';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from '@/redis/redis.provider';
+import { removeUndefined } from '@/common/utils/remove-undefined.util';
 
 @Injectable()
-export class SettingService implements OnModuleInit {
+export class SettingService {
   constructor(
     @InjectRepository(Setting)
     private readonly settingRepository: Repository<Setting>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async onModuleInit() {
-    const count = await this.settingRepository.count();
-
-    if (count === 0) {
-      const defaultSettings = this.settingRepository.create({
-        id: 1,
-        opening_time: '09:00',
-        closing_time: '23:00',
-        max_capacity: 50,
-        booking_window_days: 10,
-        slots_per_hour: 30,
-        max_stay_duration: 120,
-        max_guest_count: 8,
-      });
-
-      await this.settingRepository.save(defaultSettings);
-      console.log(
-        '✅ Default settings record (ID: 1) initialized successfully.',
-      );
-    }
-  }
-
   async getSettings(): Promise<Setting> {
     const cachedSettings = await this.redis.get('settings');
-    // console.log(cachedSettings);
     let settings: Setting;
 
     if (!cachedSettings) {
@@ -54,19 +31,24 @@ export class SettingService implements OnModuleInit {
         throw new NotFoundException('Settings not found');
       }
 
+      // Store settings data into Redis
       await this.redis.set('settings', JSON.stringify(settings), 'EX', 3600);
     } else {
-      settings = JSON.parse(cachedSettings);
+      settings = JSON.parse(cachedSettings); //Parsing cached settings that was stored into Redis
     }
 
     return settings;
   }
 
-  async updateSettings(data: UpdateSettingsDto): Promise<Setting> {
-    const existing = await this.getSettings();
+  async updateSettings(dto: UpdateSettingsDto): Promise<Setting> {
+    const settings = await this.settingRepository.findOneBy({ id: 1 });
 
-    const finalOpening = data.opening_time ?? existing.opening_time;
-    const finalClosing = data.closing_time ?? existing.closing_time;
+    if (!settings) {
+      throw new NotFoundException('There is no settings found !');
+    }
+
+    const finalOpening = dto.opening_time ?? settings?.opening_time;
+    const finalClosing = dto.closing_time ?? settings?.closing_time;
 
     if (finalOpening === finalClosing) {
       throw new BadRequestException(
@@ -74,12 +56,14 @@ export class SettingService implements OnModuleInit {
       );
     }
 
-    await this.redis.del('settings'); // Remove settings caching
+    const cleanDto = removeUndefined(dto); // Remove undefined key from Dto 
 
-    Object.assign(existing, data);
+    Object.assign(settings, cleanDto);
 
-    await this.settingRepository.save(existing);
+    await this.settingRepository.save(settings);
 
-    return this.getSettings();
+    await this.redis.set('settings', JSON.stringify(settings), 'EX', 3600); // Update cached settings
+
+    return settings;
   }
 }
