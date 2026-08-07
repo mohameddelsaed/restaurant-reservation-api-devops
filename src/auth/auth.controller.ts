@@ -8,7 +8,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
 import { ChangePasswordDto } from './dtos/change-password.dto';
 import { User } from '@/user/user.entity';
@@ -17,14 +16,8 @@ import { AuthGuard } from '@/guards/auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
-
-  @Post('signup')
-  @UseInterceptors(ClassSerializerInterceptor)
-  signup(@Body() data: SignupDto) {
-    return this.authService.signup(data);
-  }
-
+  constructor(private readonly authService: AuthService) { }
+  
   @Post('login')
   @UseInterceptors(ClassSerializerInterceptor)
   login(@Body() data: LoginDto) {

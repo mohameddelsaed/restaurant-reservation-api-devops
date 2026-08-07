@@ -2,9 +2,8 @@ import { UserService } from '@/user/user.service';
 import {
   BadRequestException,
   Injectable,
-  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
 import { ChangePasswordDto } from './dtos/change-password.dto';
 import { JwtService } from '@nestjs/jwt';
@@ -18,27 +17,13 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async signup(data: SignupDto) {
-    const { password, passwordConfirm } = data;
-
-    if (password !== passwordConfirm) {
-      throw new BadRequestException("Passwords don't match");
-    }
-
-    const user = await this.userService.create(data);
-
-    const token = await this.jwtService.signAsync({ id: user.id });
-
-    return { user, token };
-  }
-
   async login(data: LoginDto) {
     const { email, password } = data;
 
     const user = await this.userService.findOneByEmail(email);
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new NotFoundException('Email or password is an incorrect !');
+      throw new UnauthorizedException('Email or password is an incorrect !');
     }
 
     const token = await this.jwtService.signAsync({ id: user?.id });
@@ -50,7 +35,7 @@ export class AuthService {
     const { oldPassword, newPassword, newPasswordConfirm } = data;
 
     if (!user || !(await bcrypt.compare(oldPassword, user.password))) {
-      throw new NotFoundException('Password is an incorrect !');
+      throw new UnauthorizedException('Password is an incorrect !');
     }
 
     if (oldPassword === newPassword) {

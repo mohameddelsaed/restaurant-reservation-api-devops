@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { SignupDto } from '@/auth/dtos/signup.dto';
+import * as bcrypt from 'bcrypt';
+import { CreateUserDto } from './dtos/create-user.dto';
 
 @Injectable()
 export class UserService {
@@ -20,21 +25,37 @@ export class UserService {
     return user;
   }
 
-  async findOneByEmail(email:string):Promise<User | null> {
+  async findOneByEmail(email: string): Promise<User | null> {
     const user = await this.userRepository.findOneBy({ email });
     return user;
   }
 
-  async create(data:SignupDto):Promise<User>{
-    const user = this.userRepository.create(data);
+  async createReceptionist(dto: CreateUserDto) {
+    const { email, password, passwordConfirm } = dto;
+
+    const isEmailUsed = await this.userRepository.findOneBy({ email });
+
+    if (isEmailUsed) {
+      throw new BadRequestException('This email is already used !');
+    }
+
+    if (password !== passwordConfirm) {
+      throw new BadRequestException("Passwords don't match");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = this.userRepository.create({
+      ...dto,
+      password: hashedPassword,
+    });
 
     await this.userRepository.save(user);
 
     return user;
   }
 
-  async updatePassword(id:string,hashedPassword: string): Promise<void>{
+  async updatePassword(id: string, hashedPassword: string): Promise<void> {
     await this.userRepository.update(id, { password: hashedPassword });
   }
-
 }

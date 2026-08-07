@@ -1,15 +1,12 @@
-import { UserRole } from '@/user/user.entity';
 import {
   IsEmail,
-  IsEnum,
   IsNotEmpty,
-  IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from 'class-validator';
 
-export class SignupDto {
+export class CreateUserDto {
   @IsString({ message: 'Name must be a string!' })
   @IsNotEmpty({ message: 'Name is required!' })
   name: string;
@@ -29,12 +26,6 @@ export class SignupDto {
   passwordConfirm: string;
 
   @IsString({ message: 'Phone number should be a string' })
-  @IsOptional()
+  @IsNotEmpty({ message: '' })
   phone_number: string;
-
-  @IsOptional()
-  @IsEnum(UserRole, {
-    message: 'Role must be a valid UserRole (manager or receptionist)',
-  })
-  role: UserRole;
 }
