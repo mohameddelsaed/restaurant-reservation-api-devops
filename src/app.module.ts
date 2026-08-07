@@ -10,9 +10,12 @@ import { ReservationModule } from './reservation/reservation.module';
 import { RedisModule } from './redis/redis.module';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { CategoryModule } from './category/category.module';
+import { NotificationModule } from './notification/notification.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -32,6 +35,7 @@ import { CategoryModule } from './category/category.module';
     RedisModule,
     CloudinaryModule,
     CategoryModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

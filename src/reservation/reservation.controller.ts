@@ -21,7 +21,9 @@ export class ReservationController {
 
   @Get()
   @UseGuards(AuthGuard)
-  getReservations() {}
+  getReservations() {
+    return this.reservationService.getReservations();
+  }
 
   @Post()
   createReservations(@Body() dto: CreateReservationDto) {

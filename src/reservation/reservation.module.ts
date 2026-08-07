@@ -8,6 +8,8 @@ import { Reservation } from './reservation.entity';
 import { RedisModule } from '@/redis/redis.module';
 import { SettingModule } from '@/setting/setting.module';
 import { CategoryModule } from '@/category/category.module';
+import { NotificationModule } from '@/notification/notification.module';
+import { ReservationCronService } from './reservation-cron.service';
 
 @Module({
   imports: [
@@ -15,10 +17,11 @@ import { CategoryModule } from '@/category/category.module';
     RedisModule,
     SettingModule,
     CategoryModule,
+    NotificationModule,
     TypeOrmModule.forFeature([Reservation]),
   ],
   controllers: [ReservationController],
-  providers: [ReservationService, ReservationGateway],
+  providers: [ReservationService, ReservationGateway,ReservationCronService],
   exports: [ReservationService],
 })
 export class ReservationModule {}
