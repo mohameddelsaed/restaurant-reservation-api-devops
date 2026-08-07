@@ -1,19 +1,23 @@
 import {
   BadRequestException,
-  Injectable,
+  Inject,
   NotFoundException,
+  Injectable,
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Setting } from './setting.entity';
 import { UpdateSettingsDto } from './dtos/update-settings.dto';
+import Redis from 'ioredis';
+import { REDIS_CLIENT } from '@/redis/redis.provider';
 
 @Injectable()
 export class SettingService implements OnModuleInit {
   constructor(
     @InjectRepository(Setting)
     private readonly settingRepository: Repository<Setting>,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async onModuleInit() {
@@ -39,10 +43,20 @@ export class SettingService implements OnModuleInit {
   }
 
   async getSettings(): Promise<Setting> {
-    const settings = await this.settingRepository.findOneBy({ id: 1 });
+    const cachedSettings = await this.redis.get('settings');
+    // console.log(cachedSettings);
+    let settings: Setting;
 
-    if (!settings) {
-      throw new NotFoundException('Settings not initialized yet');
+    if (!cachedSettings) {
+      settings = (await this.settingRepository.findOneBy({ id: 1 })) as Setting;
+
+      if (!settings) {
+        throw new NotFoundException('Settings not found');
+      }
+
+      await this.redis.set('settings', JSON.stringify(settings), 'EX', 3600);
+    } else {
+      settings = JSON.parse(cachedSettings);
     }
 
     return settings;
@@ -60,7 +74,11 @@ export class SettingService implements OnModuleInit {
       );
     }
 
-    await this.settingRepository.update(existing.id, data);
+    await this.redis.del('settings'); // Remove settings caching
+
+    Object.assign(existing, data);
+
+    await this.settingRepository.save(existing);
 
     return this.getSettings();
   }

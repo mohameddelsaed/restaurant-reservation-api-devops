@@ -1,31 +1,35 @@
 import { SettingService } from '@/setting/setting.service';
+import { TimeSlotService } from '@/time-slot/time-slot.service';
 import { Injectable } from '@nestjs/common';
+import { addDays, format } from 'date-fns';
 
 @Injectable()
 export class DateService {
-  constructor(private readonly settingService: SettingService) {}
+  constructor(
+    private readonly settingService: SettingService,
+    private readonly timeSlotService: TimeSlotService,
+  ) {}
 
   async getDates() {
     const settings = await this.settingService.getSettings();
-    const numOfDays = settings?.booking_window_days;
+    const numOfDays = settings?.booking_window_days ?? 0;
 
-    const days: { date: string; isAvailable: boolean }[] = [];
+    const today = new Date();
 
-    if (numOfDays > 0) {
-      const today = new Date();
+    const datesToFetch = Array.from({ length: numOfDays }, (_, i) => { 
+      const nextDate = addDays(today, i);
+      return format(nextDate, 'yyyy-MM-dd');
+    });
 
-      for (let i = 0; i < numOfDays; i++) {
-        const nextDay = new Date(today);
-        nextDay.setDate(today.getDate() + i);
-
-        days.push({
-          date: nextDay.toISOString().split('T')[0],
-          isAvailable: true,
-        });
-
-      } 
-    }
-
+    const days = await Promise.all(
+      datesToFetch.map(async (date) => {
+        const times = await this.timeSlotService.getTimeSlots(date);
+        return {
+          date,
+          isAvailable: times.some((cur) => cur.isAvailable),
+        };
+      }),
+    );
     return days;
   }
 }
