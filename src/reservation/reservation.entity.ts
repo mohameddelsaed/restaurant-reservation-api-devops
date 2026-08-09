@@ -17,6 +17,7 @@ export enum ReservationStatus {
   RESERVED = 'reserved',
   WAITING = 'waiting',
   ARRIVED = 'arrived',
+  CANCELED = 'canceled',
 }
 
 @Entity()

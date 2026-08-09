@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ReservationService } from './reservation.service';
@@ -14,6 +15,8 @@ import { AuthGuard } from '@/guards/auth.guard';
 import { CreateReservationDto } from './dtos/create-reservation.dto';
 import { UpdateReservationDto } from './dtos/update-reservation.dto';
 import { UpdateReservationStatusDto } from './dtos/update-reservation-status.dto';
+import { ReservationStatus } from './reservation.entity';
+import { ConfirmReservationDto } from './dtos/confirm-reservation.dto';
 
 @Controller('reservations')
 export class ReservationController {
@@ -21,8 +24,8 @@ export class ReservationController {
 
   @Get()
   @UseGuards(AuthGuard)
-  getReservations() {
-    return this.reservationService.getReservations();
+  getReservations(@Query() query:Record<string, any>) {
+    return this.reservationService.getReservations(query);
   }
 
   @Post()
@@ -31,8 +34,8 @@ export class ReservationController {
   }
 
   @Patch(":id/confirm")
-  confirmReservations(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { otp: string }) {
-    return this.reservationService.confirmReservation(id, dto.otp);
+  confirmReservations(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ConfirmReservationDto) {
+    return this.reservationService.confirmReservation(id, dto);
   }
 
   @Patch(':id')
@@ -50,6 +53,9 @@ export class ReservationController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateReservationStatusDto,
   ) {
+    if (dto.status === ReservationStatus.CANCELED) {
+      return this.reservationService.cancelReservation(id);    
+    }
     return this.reservationService.updateReservationStatus(id, dto.status);
   }
 

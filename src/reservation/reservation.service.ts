@@ -6,7 +6,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, LessThanOrEqual, Repository } from 'typeorm';
+import {
+  And,
+  LessThan,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
 import { Reservation, ReservationStatus } from './reservation.entity';
 import { REDIS_CLIENT } from '@/redis/redis.provider';
 import Redis from 'ioredis';
@@ -16,7 +23,19 @@ import { ReservationGateway } from './reservation.gateway';
 import { CreateReservationDto } from './dtos/create-reservation.dto';
 import { CategoryService } from '@/category/category.service';
 import { NotificationService } from '@/notification/notification.service';
-import { format } from 'date-fns';
+import {
+  addMinutes,
+  differenceInMinutes,
+  format,
+  parse,
+  startOfDay,
+  subMinutes,
+  toDate,
+} from 'date-fns';
+import { SettingService } from '@/setting/setting.service';
+import { Category } from '@/category/category.entity';
+import { APIFeatures } from '@/common/utils/api-features';
+import { ConfirmReservationDto } from './dtos/confirm-reservation.dto';
 
 @Injectable()
 export class ReservationService {
@@ -26,12 +45,83 @@ export class ReservationService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly reservationGateway: ReservationGateway,
     private readonly categoryService: CategoryService,
+    private readonly settingService: SettingService,
     private readonly notificationService: NotificationService,
   ) {}
 
-  async getReservations(): Promise<Reservation[]> {
-    const reservations = await this.reservationRepository.find();
+  async getReservations(query: Record<string, any>): Promise<Reservation[]> {
+    const options = new APIFeatures(query)
+      .filter()
+      .sort()
+      .paginate()
+      .limitFields()
+      .getOptions();
+
+    const reservations = await this.reservationRepository.find(options);
     return reservations;
+  }
+
+  private async validateReservationDateAndTime(
+    dto: CreateReservationDto,
+    category: Category,
+  ): Promise<void> {
+    const setting = await this.settingService.getSettings();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(dto.date);
+
+    const maxDate = new Date(today);
+    maxDate.setDate(today.getDate() + setting.booking_window_days);
+
+    if (
+      selectedDate.getTime() < today.getTime() ||
+      selectedDate.getTime() > maxDate.getTime()
+    ) {
+      throw new BadRequestException('Your selected date was expired !');
+    }
+
+    const baseTime = parse(dto.seating_time, 'HH:mm', new Date());
+
+    const minTimeDate = subMinutes(baseTime, setting.max_stay_duration);
+    const minSeatingTime = format(minTimeDate, 'HH:mm:ss');
+
+    const maxTimeDate = addMinutes(baseTime, category.stayDuration);
+    const maxSeatingTime = format(maxTimeDate, 'HH:mm:ss');
+
+    const reservationByDate = await this.reservationRepository.find({
+      where: {
+        date: dto.date,
+        seating_time: And(
+          MoreThanOrEqual(minSeatingTime),
+          LessThan(maxSeatingTime),
+        ),
+        status: Not(ReservationStatus.CANCELED),
+      },
+    });
+
+    const getMinutes = (timeStr: string): number => {
+      const formattedTime = timeStr.slice(0, 5);
+      const date = parse(formattedTime, 'HH:mm', new Date());
+
+      return differenceInMinutes(date, startOfDay(date));
+    };
+
+    const newStartMinutes = getMinutes(dto.seating_time);
+
+    const usedCapacity = reservationByDate.reduce((acc, cur) => {
+      const curStartMinutes = getMinutes(cur.seating_time);
+      const curEndMinutes = curStartMinutes + cur.category.stay_duration;
+
+      if (curEndMinutes > newStartMinutes) {
+        return acc + cur.guest_count;
+      }
+      return acc;
+    }, 0);
+
+    if (usedCapacity + dto.guest_count > setting.max_capacity) {
+      throw new BadRequestException('Your selected time is unavailable');
+    }
   }
 
   async createReservation(dto: CreateReservationDto) {
@@ -42,13 +132,13 @@ export class ReservationService {
       throw new NotFoundException('There is no category with that id !');
     }
 
-    // Here we will check about "Date" and "Time" availability
+    await this.validateReservationDateAndTime(dto, category);
 
     const otp = randomInt(100000, 1000000).toString(); //Create OTP Code
 
     await this.redis.set(`otp-${dto.phone_number}`, otp, 'EX', 300); // Save OTP Into Redis
 
-    // Send OTP Code via SMS Service
+    // Send OTP Code via <SMS || Whatsapp> Service
     // await this.notificationService.sendSMSNotification(`+2${dto.phone_number}`, `Your OTP code is : ${otp}`);
     await this.notificationService.sendWhatsappNotification(
       `+2${dto.phone_number}`,
@@ -69,12 +159,12 @@ export class ReservationService {
     await this.reservationRepository.save(reservation);
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange(reservation);
+    this.reservationGateway.notifyReservationChange();
 
     return reservation;
   }
 
-  async confirmReservation(id: string, otp: string) {
+  async confirmReservation(id: string, dto: ConfirmReservationDto) {
     const reservation = await this.reservationRepository.findOneBy({ id });
 
     if (!reservation) {
@@ -87,7 +177,7 @@ export class ReservationService {
 
     const savedOTP = await this.redis.get(`otp-${reservation.phone_number}`); // Get OTP Code From Redis
 
-    if (!savedOTP || savedOTP !== otp) {
+    if (!savedOTP || savedOTP !== dto.otp) {
       throw new UnauthorizedException('OTP code is incorrect or has expired!');
     }
 
@@ -110,7 +200,7 @@ export class ReservationService {
     );
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange(reservation);
+    this.reservationGateway.notifyReservationChange();
 
     return reservation;
   }
@@ -147,7 +237,7 @@ export class ReservationService {
     await this.reservationRepository.save(reservation);
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange(reservation);
+    this.reservationGateway.notifyReservationChange();
 
     return reservation;
   }
@@ -164,7 +254,7 @@ export class ReservationService {
     await this.reservationRepository.save(reservation);
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange(reservation);
+    this.reservationGateway.notifyReservationChange();
 
     if (reservation.status === ReservationStatus.RESERVED) {
       // Here Will Send Whatsapp notification about Reservation Confirmation
@@ -183,7 +273,7 @@ export class ReservationService {
     await this.reservationRepository.remove(reservation);
 
     // Call WebSocket Gateway here to notify gateway
-    this.reservationGateway.notifyReservationChange({ id, deleted: true });
+    this.reservationGateway.notifyReservationChange();
 
     return { message: 'Reservation deleted successfully' };
   }
@@ -195,7 +285,13 @@ export class ReservationService {
       throw new NotFoundException('There is no reservation with that id!');
     }
 
-    // reservation.status = ReservationStatus.
+    reservation.status = ReservationStatus.CANCELED;
+
+    await this.reservationRepository.save(reservation);
+
+    this.reservationGateway.notifyReservationChange();
+
+    return reservation;
   }
 
   async markOverdueAsWaiting() {
@@ -203,7 +299,7 @@ export class ReservationService {
     const currentDateStr = format(today, 'yyyy-MM-dd');
     const currentTimeStr = format(today, 'HH:mm:ss');
 
-    await this.reservationRepository.update(
+    const result = await this.reservationRepository.update(
       {
         date: currentDateStr,
         status: ReservationStatus.RESERVED,
@@ -213,11 +309,17 @@ export class ReservationService {
         status: ReservationStatus.WAITING,
       },
     );
+
+    if (result.affected && result.affected > 0) {
+      this.reservationGateway.notifyReservationChange();
+    }
   }
 
   async deleteReservationsOlderThan(cutoffDate: Date) {
     await this.reservationRepository.delete({
       date: LessThan(format(cutoffDate, 'yyyy-MM-dd')),
     });
+
+    this.reservationGateway.notifyReservationChange();
   }
 }
