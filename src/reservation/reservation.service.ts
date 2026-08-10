@@ -30,7 +30,6 @@ import {
   parse,
   startOfDay,
   subMinutes,
-  toDate,
 } from 'date-fns';
 import { SettingService } from '@/setting/setting.service';
 import { Category } from '@/category/category.entity';
@@ -57,8 +56,7 @@ export class ReservationService {
       .limitFields()
       .getOptions();
 
-    const reservations = await this.reservationRepository.find(options);
-    return reservations;
+    return await this.reservationRepository.find(options);
   }
 
   private async validateReservationDateAndTime(
@@ -86,7 +84,7 @@ export class ReservationService {
     const minTimeDate = subMinutes(baseTime, setting.max_stay_duration);
     const minSeatingTime = format(minTimeDate, 'HH:mm:ss');
 
-    const maxTimeDate = addMinutes(baseTime, category.stayDuration);
+    const maxTimeDate = addMinutes(baseTime, category.stay_duration);
     const maxSeatingTime = format(maxTimeDate, 'HH:mm:ss');
 
     const reservationByDate = await this.reservationRepository.find({
@@ -152,7 +150,7 @@ export class ReservationService {
       category: {
         id: category.id,
         name: category.name,
-        stay_duration: category.stayDuration,
+        stay_duration: category.stay_duration,
       },
     });
 
@@ -227,7 +225,7 @@ export class ReservationService {
         category: {
           id: category.id,
           name: category.name,
-          stay_duration: category.stayDuration,
+          stay_duration: category.stay_duration,
         },
       });
     } else {

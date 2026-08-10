@@ -12,13 +12,11 @@ export class ReservationCronService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async handleWaitingStatus() {
-    console.log("worked after 1 min");
     await this.reservationService.markOverdueAsWaiting();
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async handleDailyCleanup() {
-    console.log("worked at 3 AM");
     const { booking_window_days } = await this.settingService.getSettings();
     
     const cutoffDate = new Date();

@@ -1,9 +1,10 @@
 import { memoryStorage } from 'multer';
 import { BadRequestException } from '@nestjs/common';
+import { Request } from 'express';
 
 export const imageMulterConfig = {
   storage: memoryStorage(),
-  fileFilter: (req, file, callback) => {
+  fileFilter: (req:Request, file, callback) => {
     if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
       return callback(
         new BadRequestException('Only JPG, JPEG, PNG, and WEBP image formats are allowed'),

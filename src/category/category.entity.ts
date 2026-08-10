@@ -10,33 +10,27 @@ import {
 @Entity('categories')
 export class Category {
   @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  id: string;
 
   @Column({ unique: true })
-  name!: string;
+  name: string;
 
-  @Column({ nullable: true })
-  description?: string;
+  @Column()
+  description: string;
 
-  @Column({ name: 'stay_duration' })
-  stayDuration!: number;
+  @Column()
+  stay_duration: number;
 
-  @Column({ name: 'shift_start', type: 'varchar', default: '12:00' })
-  shiftStart!: string;
-
-  @Column({ name: 'shift_end', type: 'varchar', default: '23:59' })
-  shiftEnd!: string;
-
-  @Column({ nullable: true })
-  image?: string;
+  @Column()
+  image: string;
 
   @Exclude()
-  @Column({ name: 'image_public_id', nullable: true })
-  imagePublicId?: string;
+  @Column()
+  image_public_id: string;
 
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  @CreateDateColumn()
+  created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  @UpdateDateColumn()
+  updated_at: Date;
 }
